@@ -14,6 +14,9 @@
  *    -> to make parameterizable, it is a good question, whether that should happen outside or inside class
  * Consider using static member-variable for id'ing topic-names etc.
  * Consider also listening to pose-channel for outputs or do it in a separate class/node?
+ * The variables in the C++-file should probably be made into ROS2-paramters!!!!!
+ * Create parameters, and generate the yaml-file from python-script that will be used
+ *    to launch this node.
  */
 
 //#include "turtlesim/turtle.hpp"
@@ -25,6 +28,7 @@
 #include <functional>
 #include <string>
 #include <chrono>
+#include <vector>
 
 #include "geometry_msgs/msg/twist.hpp"
 #include "rclcpp/rclcpp.hpp"
@@ -82,6 +86,14 @@ constexpr Timing_Behavior timing = Timing_Behavior::fixed;
 
 using namespace std::chrono_literals;
 
+
+/*Try to maybe find way to convert integral-param to the ms-one?
+
+the following illustrates one possible way to convert from int to the ms-interval:
+  int timeInt{ 100 };
+  unsigned long long timeFromInt{ static_cast<unsigned long long>(timeInt) };
+  std::chrono::milliseconds period2(timeFromInt);
+*/
 /*fixed time interval (if periodic)*/
 constexpr auto interval = 500ms;
 
@@ -100,30 +112,47 @@ constexpr auto interval = 500ms;
 
 class MinimalPublisher : public rclcpp::Node
 {
+  //declared first (for now) as it has auto-return-type
+  private: 
+    auto create_param_timer()
+    {
+      auto period_int = get_parameter("period").get_value<int>();
+      unsigned long long timeFromInt{ static_cast<unsigned long long>(period_int) };
+      std::chrono::milliseconds period_param(timeFromInt);
+      return this->create_wall_timer(
+      period_param, std::bind(&MinimalPublisher::timer_callback, this));
+    }
   public:
     MinimalPublisher() //constructor
     : Node("minimal_publisher"), count_(0) //class member-initializations
     { //Insert the topic-name here
+      //create parameters
+      this->declare_parameter("period", 1000);
+      this->declare_parameter("topic_name", "turtle1/cmd_vel");
+      this->declare_parameter("buffer-size", 7);
       //TODO: message-type inserted here (used geometry_msgs here) (could be less hardcoded?)
       //QoS_param also just inserted
       publisher_ = this->create_publisher<geometry_msgs::msg::Twist>(topicName, QoS_param); //further inits (because of pointers?)?
-      timer_ = this->create_wall_timer(
-      interval, std::bind(&MinimalPublisher::timer_callback, this));
+
+
+      //timer_ = this->create_wall_timer(
+      //interval, std::bind(&MinimalPublisher::timer_callback, this));
+      timer_ = create_param_timer();
+
     }
 
   private:
     //class function-member (the callback function)
     void timer_callback()
     { //TODO: This should probably be parameterized:
-      //auto message = std_msgs::msg::String();
+      
+      //default left-spin-message
       geometry_msgs::msg::Twist twist;
-      //message.data = "Hello, world! " + std::to_string(count_++);
-      twist.angular.z = 2.0; //default left-spin
+      twist.angular.z = 2.0; 
       twist.linear.x = 0.0;
-      ////maybe works as is?
-      //RCLCPP_INFO(this->get_logger(), "Publishing: '%s'", message.data.c_str());
+      
+      //print message and publish message
       RCLCPP_INFO(this->get_logger(), "Publishing: a message no `%s`!:-)", std::to_string(++count_));
-      //publisher_->publish(message);
       publisher_->publish(twist);
     }
     
@@ -133,6 +162,19 @@ class MinimalPublisher : public rclcpp::Node
     rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr publisher_;
     size_t count_;
 };
+
+
+////template function for taking an array indicating release-times
+////(We might end up preferring range-based loop instead etc.?)
+//template <typename T>
+//void sporadicCallback(const std::vector<T>& arr)
+//{
+//    std::size_t length { arr.size() };
+//    //TODO: implement
+//     for (std::size_t i{ 0 }; index < length; ++i){
+//        //arr.data()[i];
+//     }
+//}
 
 int main(int argc, char * argv[])
 {
