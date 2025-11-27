@@ -12,11 +12,20 @@
  * -make class more template based / or member types in order to have generalize it, message-wise etc.
  * -Some dependencies commented out for now.
  *    -> to make parameterizable, it is a good question, whether that should happen outside or inside class
- * Consider using static member-variable for id'ing topic-names etc.
- * Consider also listening to pose-channel for outputs or do it in a separate class/node?
- * The variables in the C++-file should probably be made into ROS2-paramters!!!!!
- * Create parameters, and generate the yaml-file from python-script that will be used
+ * -Consider using static member-variable for id'ing topic-names etc.
+ * -Consider also listening to pose-channel for outputs or do it in a separate class/node?
+ * -The variables in the C++-file should probably be made into ROS2-paramters!!!!!
+ * -Create parameters, and generate the yaml-file from python-script that will be used
  *    to launch this node.
+ * -Consider using timer-class from crono (see chap. 18 in learncpp), and make sure not in debug-config
+ * -maybe add benchmarkable extention to messages (such as ID and timestamp),
+ *    or use topic-statistics in rclcpp (only per topic basis?)
+ * -Can we assume sequential arrival-order of callbacks (1st sent will be 1st in end)?
+ * -addressing shortcomings in modeling some delays may be contribution in itself?
+ * -YAETS maybe promising tracing-system (https://github.com/fmrico/yaets), as asynchronously
+ * -Otherwise maybe ROS2's own topic statistics might be of use. 
+ *      -> lots of applications only concerned with average-latency rather than max-latency (important in real-time, though)
+ * -For more fine-grained, it might be possible to scale times (requires that we know relative duration?)
  */
 
 //#include "turtlesim/turtle.hpp"
@@ -164,6 +173,7 @@ class MinimalPublisher : public rclcpp::Node
 };
 
 
+////TODO: If in class, we can maybe also dynamically allocate an array (and delete it in destructor -> see chap. 19)
 ////template function for taking an array indicating release-times
 ////(We might end up preferring range-based loop instead etc.?)
 //template <typename T>
