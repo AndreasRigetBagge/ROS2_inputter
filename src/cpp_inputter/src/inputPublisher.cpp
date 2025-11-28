@@ -38,6 +38,7 @@
 #include <string>
 #include <chrono>
 #include <vector>
+#include <thread>
 
 #include "geometry_msgs/msg/twist.hpp"
 #include "rclcpp/rclcpp.hpp"
@@ -114,39 +115,86 @@ constexpr auto interval = 500ms;
 /*The publisher: 
 (for now more or less using the one from ROS2-tutorial with some injections?)*/
 
+//TODO: maybe give own utility-class to not clutter code
+//for converting int-param to selected time param T (must have unsigned long long constructor!)
+//ref should be okay (but maybe redundant?) with regards to scope??
+template<typename T>
+T toTime(const int64_t param){
+  unsigned long long t{ static_cast<unsigned long long>(param) };
+  T period_param(t);
+  return period_param;
+}
+
+//TODO: toTime-overload that just handles int? 
+
+
+
+
+auto now() { return std::chrono::steady_clock::now(); }
+
+auto awake_time()
+{
+    using std::chrono::operator""ms;
+    return now() + 2000ms;
+}
+
+auto awake_time(std::chrono::milliseconds time)
+{
+    using std::chrono::operator""ms;
+    return now() + time;
+}
+
 
 
 /* This example creates a subclass of Node and uses std::bind() to register a
 * member function as a callback from the timer. */
-
 class MinimalPublisher : public rclcpp::Node
 {
+  using msec = std::chrono::milliseconds;
   //declared first (for now) as it has auto-return-type
   private: 
     auto create_param_timer()
     {
-      auto period_int = get_parameter("period").get_value<int>();
-      unsigned long long timeFromInt{ static_cast<unsigned long long>(period_int) };
-      std::chrono::milliseconds period_param(timeFromInt);
+      auto period_param(toTime<msec>(get_parameter("period").get_value<int64_t>()));
       return this->create_wall_timer(
-      period_param, std::bind(&MinimalPublisher::timer_callback, this));
+        period_param, std::bind(&MinimalPublisher::timer_callback, this));
     }
   public:
     MinimalPublisher() //constructor
     : Node("minimal_publisher"), count_(0) //class member-initializations
-    { //Insert the topic-name here
+    { 
       //create parameters
       this->declare_parameter("period", 1000);
+
       this->declare_parameter("topic_name", "turtle1/cmd_vel");
+
       this->declare_parameter("buffer-size", 7);
+
+      //sporadic events (empty vector as default for now)
+      this->declare_parameter("events", std::vector<int>{1000, 2000, 3000, 4000});
+
+      this->declare_parameter("periodic", true);
+
       //TODO: message-type inserted here (used geometry_msgs here) (could be less hardcoded?)
       //QoS_param also just inserted
       publisher_ = this->create_publisher<geometry_msgs::msg::Twist>(topicName, QoS_param); //further inits (because of pointers?)?
-
-
-      //timer_ = this->create_wall_timer(
-      //interval, std::bind(&MinimalPublisher::timer_callback, this));
-      timer_ = create_param_timer();
+      
+      if(get_parameter("periodic").get_value<bool>()){
+        
+        //setup of periodic callback
+        timer_ = create_param_timer();
+      }
+      else{
+        RCLCPP_INFO(this->get_logger(), "Activating events!!!");
+        RCLCPP_INFO(this->get_logger(), "Step1!!!");
+        std::vector<int64_t> events_int = get_parameter("events").get_value<std::vector<int64_t>>();
+        RCLCPP_INFO(this->get_logger(), "Step2!!!");
+        std::size_t event_no { events_int.size() };
+        RCLCPP_INFO(this->get_logger(), "Step3!!!");
+        std::vector<msec> event_times {toTimeArray(events_int, event_no)};
+        RCLCPP_INFO(this->get_logger(), "Step4!!!");
+        sporadicCallback(event_times);
+      }
 
     }
 
@@ -163,6 +211,36 @@ class MinimalPublisher : public rclcpp::Node
       //print message and publish message
       RCLCPP_INFO(this->get_logger(), "Publishing: a message no `%s`!:-)", std::to_string(++count_));
       publisher_->publish(twist);
+    }
+
+    //Maybe need to use c-style array instead (can this be done without using heap?-> otherwise slower access???)
+  //template <typename T>
+  void sporadicCallback(const std::vector<msec>& arr)
+  {
+      //length of parameter-array
+      std::size_t length { arr.size() };
+
+      //get current time
+      const auto start{ now() };
+      //uses for-loop for now.
+      //(other iteration-structure might be faster)
+      for (std::size_t i{ 0 }; i < length; ++i){
+          const auto nextTime{ arr.data()[i] };
+          //timeout for the specified interval 
+              //(with timestamps, this should be calculated differently (-> might take account for elapsed times even)
+          std::this_thread::sleep_until(awake_time(nextTime));
+          //print (for now) -> should publish to topic
+          RCLCPP_INFO(this->get_logger(), "Publishing: a message!:-)");
+          timer_callback();
+      }
+  }
+
+    std::vector<msec> toTimeArray(const std::vector<int64_t> events_p, const std::size_t length_p){
+      std::vector<msec> arr{};
+      for (std::size_t i{ 0 }; i < length_p; ++i){
+          arr.push_back(toTime<msec>(events_p[i]));
+        }
+      return arr;
     }
     
     //Class data-members 
