@@ -5,5 +5,6 @@
 2- go to ws root and source the package ($ call install\setup.bat)
 3- (in another terminal source ROS2 and $ ros2 run turtlesim turtlesim_node)
 4- run the node: ros2 run cpp_inputter input_publisher
-5- to run with preset argument for period: $ ros2 run cpp_inputter input_publisher --ros-args -p period:=<param_value>
-
+5- to run with argument for period: $ ros2 run cpp_inputter input_publisher --ros-args -p period:=<param_value>
+6- to run with argument for sporadic release-events: $ ros2 run cpp_inputter input_publisher --ros-args -p periodic:=false -p events:=<events>
+	'events' can be made in the format such as e.g. '[1000,1000,1000,500,200,300]' for int64_t
